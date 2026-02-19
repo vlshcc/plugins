@@ -45,6 +45,7 @@ Each plugin is a self-contained V program that responds to arguments passed by v
 | `git_mood.v` | Shows an emoji above the prompt indicating whether the git working tree is clean |
 | `ssh_hosts.v` | Provides tab-completion for `ssh` commands using hostnames from `~/.ssh/config` and `~/.ssh/known_hosts` |
 | `v_man.v` | Adds a `vman <module>` command that fetches and displays V module documentation from [modules.vlang.io](https://modules.vlang.io/) |
+| `mux_status_path.v` | Shows the current working directory above the prompt, with `~` abbreviation and configurable colours via `~/.vlshrc` |
 
 ## Writing a plugin
 

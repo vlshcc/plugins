@@ -1,10 +1,10 @@
-// Current-directory prompt plugin for vlsh.
+// Current-directory mux status bar plugin for vlsh.
 //
 // Copy this file to ~/.vlsh/plugins/mux_status_path.v
 // vlsh will compile it automatically on the next start (requires `v` in PATH).
 //
-// Shows the current working directory above the prompt, with the home directory
-// abbreviated to '~'. Colours are configurable via ~/.vlshrc:
+// Shows the current working directory in the mux status bar, with the home
+// directory abbreviated to '~'. Colours are configurable via ~/.vlshrc:
 //   style_path_bg=R,G,B
 //   style_path_fg=R,G,B
 
@@ -29,7 +29,7 @@ fn read_style_color(config_file string, key string, default_rgb []int) []int {
 	return default_rgb
 }
 
-fn path_prompt_line() string {
+fn path_status_line() string {
 	cwd := os.getwd()
 	home := os.home_dir()
 	display := if cwd.starts_with(home) {
@@ -50,10 +50,10 @@ fn main() {
 	op := if os.args.len > 1 { os.args[1] } else { '' }
 	match op {
 		'capabilities' {
-			println('prompt')
+			println('mux_status')
 		}
-		'prompt' {
-			println(path_prompt_line())
+		'mux_status' {
+			println(path_status_line())
 		}
 		else {}
 	}
