@@ -1,0 +1,4 @@
+name        = "share"
+author      = "David Satime Wallin"
+email       = "david@snogerup.com"
+description = "Uploads any text file to dpaste.com and prints the resulting URL. Usage: share <file>."

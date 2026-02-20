@@ -1,0 +1,4 @@
+name        = "git_mood"
+author      = "David Satime Wallin"
+email       = "david@snogerup.com"
+description = "Shows an emoji above the prompt indicating whether the git working tree is clean (✅) or has uncommitted changes (😡)."

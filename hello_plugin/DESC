@@ -1,0 +1,4 @@
+name        = "hello_plugin"
+author      = "David Satime Wallin"
+email       = "david@snogerup.com"
+description = "A minimal example plugin demonstrating all vlsh plugin capabilities — a good starting point for writing your own plugin."

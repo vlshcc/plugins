@@ -22,7 +22,7 @@ plugins reload          # recompile all plugins
 plugins delete <name>   # remove a plugin
 ```
 
-When you run `plugins install`, vlsh fetches the corresponding `.v` file from this repository into `~/.vlsh/plugins/`, then compiles and activates it.
+When you run `plugins install`, vlsh fetches the plugin source from this repository into `~/.vlsh/plugins/`, then compiles and activates it.
 
 ## Plugin capabilities
 
@@ -36,16 +36,39 @@ Each plugin is a self-contained V program that responds to arguments passed by v
 | `post_hook` | Called after every command finishes, receives the command line and exit code |
 | `completion` | Provides tab-completion candidates for a given input line |
 
+## Repository layout
+
+Each plugin lives in its own directory. The directory name is the plugin name:
+
+```
+<plugin-name>/
+├── DESC          # plugin metadata (TOML)
+└── v1.0.0/
+    └── <plugin-name>.v   # source for version 1.0.0
+```
+
+The `DESC` file contains the following TOML fields:
+
+| Field | Description |
+|---|---|
+| `name` | Plugin name (matches the directory name) |
+| `author` | Author's full name |
+| `email` | Author's e-mail address |
+| `description` | Short description of what the plugin does |
+
+Version directories follow [Semantic Versioning](https://semver.org/) with a `v` prefix (e.g. `v1.0.0`, `v1.2.3`).
+
 ## Plugins in this repository
 
-| File | Description |
+| Plugin | Description |
 |---|---|
-| `hello_plugin.v` | A minimal example plugin demonstrating all capabilities — a good starting point for writing your own |
-| `git.v` | Shows the current git branch and short commit hash above the prompt, with configurable colours via `~/.vlshrc` |
-| `git_mood.v` | Shows an emoji above the prompt indicating whether the git working tree is clean |
-| `ssh_hosts.v` | Provides tab-completion for `ssh` commands using hostnames from `~/.ssh/config` and `~/.ssh/known_hosts` |
-| `v_man.v` | Adds a `vman <module>` command that fetches and displays V module documentation from [modules.vlang.io](https://modules.vlang.io/) |
-| `mux_status_path.v` | Shows the current working directory above the prompt, with `~` abbreviation and configurable colours via `~/.vlshrc` |
+| `hello_plugin` | A minimal example plugin demonstrating all capabilities — a good starting point for writing your own |
+| `git` | Shows the current git branch and short commit hash above the prompt, with configurable colours via `~/.vlshrc` |
+| `git_mood` | Shows an emoji above the prompt indicating whether the git working tree is clean |
+| `ssh_hosts` | Provides tab-completion for `ssh` commands using hostnames from `~/.ssh/config` and `~/.ssh/known_hosts` |
+| `v_man` | Adds a `vman <module>` command that fetches and displays V module documentation from [modules.vlang.io](https://modules.vlang.io/) |
+| `hist` | Captures terminal output after every command via tmux and stores it in `~/.vlsh/hist_output.txt` |
+| `share` | Uploads any text file to dpaste.com and prints the resulting URL |
 
 ## Writing a plugin
 
@@ -65,7 +88,9 @@ your_plugin complete  <input_line>  # print completion candidates, one per line
 Pull requests are welcome! To add your plugin to this repository:
 
 1. Fork this repository
-2. Add your `.v` plugin file to the root of the repository
-3. Open a pull request with a short description of what your plugin does
+2. Create a new directory named after your plugin (e.g. `my_plugin/`)
+3. Add a `DESC` file with the required TOML fields (see layout above)
+4. Add a `v1.0.0/` subdirectory containing your `.v` source file
+5. Open a pull request with a short description of what your plugin does
 
-Please keep plugins self-contained (a single `.v` file) and make sure they compile cleanly with a recent version of V.
+Please keep plugins self-contained (a single `.v` file per version) and make sure they compile cleanly with a recent version of V.

@@ -1,0 +1,4 @@
+name        = "v_man"
+author      = "David Satime Wallin"
+email       = "david@snogerup.com"
+description = "Adds a 'vman <module>' command that fetches and displays V module documentation from modules.vlang.io in a pager."

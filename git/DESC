@@ -1,0 +1,4 @@
+name        = "git"
+author      = "David Satime Wallin"
+email       = "david@snogerup.com"
+description = "Shows the current git branch and short commit hash above the prompt, with configurable colours via ~/.vlshrc."

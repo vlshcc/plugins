@@ -1,0 +1,4 @@
+name        = "ssh_hosts"
+author      = "David Satime Wallin"
+email       = "david@snogerup.com"
+description = "Provides tab-completion for ssh commands using hostnames gathered from ~/.ssh/config and ~/.ssh/known_hosts."

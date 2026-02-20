@@ -1,0 +1,4 @@
+name        = "hist"
+author      = "David Satime Wallin"
+email       = "david@snogerup.com"
+description = "Captures the last 5000 lines of terminal output after every command via tmux capture-pane and stores them in ~/.vlsh/hist_output.txt."
