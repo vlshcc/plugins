@@ -5,9 +5,12 @@
 //   cp hist.v ~/.vlsh/plugins/hist/v1.0.0/hist.v
 //   Then inside vlsh: plugins reload
 //
-// output_hook is called after every command. The command line is always
-// recorded; captured output (available for piped commands) is appended
-// when present. The file is trimmed to 5000 lines after each write.
+// Two-hook design:
+//   output_hook fires first (for ls, echo, and external commands) and saves
+//   any captured output to a temp buffer file.
+//   post_hook fires after every command unconditionally. It writes
+//   "$ cmdline" plus the buffered output (if any) to the history file,
+//   then clears the buffer. The history file is trimmed to 5000 lines.
 //
 // Usage:
 //   hist        — print the path to the history file
@@ -17,8 +20,9 @@ module main
 
 import os
 
-const hist_file = os.home_dir() + '/.vlsh/hist_output.txt'
-const max_lines = 5000
+const hist_file    = os.home_dir() + '/.vlsh/hist_output.txt'
+const pending_file = os.home_dir() + '/.vlsh/.hist_pending'
+const max_lines    = 5000
 
 fn trim_to_max(path string) {
 	content := os.read_file(path) or { return }
@@ -36,25 +40,41 @@ fn main() {
 	match op {
 		'capabilities' {
 			println('output_hook')
+			println('post_hook')
 			println('command hist')
 		}
 
+		// output_hook fires before post_hook for ls, echo, and external commands.
+		// Save non-empty output to the pending buffer so post_hook can pick it up.
 		// output_hook <cmdline> <exit_code> <output>
-		// Called for every command; output is non-empty only for piped commands.
 		'output_hook' {
-			cmdline := if os.args.len > 2 { os.args[2] } else { '' }
-			output  := if os.args.len > 4 { os.args[4] } else { '' }
+			output := if os.args.len > 4 { os.args[4] } else { '' }
+			if output == '' {
+				return
+			}
+			os.mkdir_all(os.dir(pending_file)) or {}
+			os.write_file(pending_file, output) or {}
+		}
 
+		// post_hook fires after every command. Write the command line plus any
+		// buffered output from output_hook, then clear the buffer.
+		// post_hook <cmdline> <exit_code>
+		'post_hook' {
+			cmdline := if os.args.len > 2 { os.args[2] } else { '' }
 			if cmdline == '' || cmdline.starts_with('plugins ') {
 				return
 			}
 
 			mut entry := '$ ${cmdline}\n'
-			if output != '' {
-				entry += output
-				if !output.ends_with('\n') {
-					entry += '\n'
+			if os.exists(pending_file) {
+				pending := os.read_file(pending_file) or { '' }
+				if pending != '' {
+					entry += pending
+					if !pending.ends_with('\n') {
+						entry += '\n'
+					}
 				}
+				os.rm(pending_file) or {}
 			}
 			entry += '\n'
 
