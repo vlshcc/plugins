@@ -42,6 +42,23 @@ fn main() {
 			println('output_hook')
 			println('post_hook')
 			println('command hist')
+			println('help')
+		}
+		'help' {
+			cmd := if os.args.len > 2 { os.args[2] } else { '' }
+			match cmd {
+				'hist', '' {
+					println('hist — rolling terminal output history')
+					println('')
+					println('Usage:')
+					println('  hist        print the path to the history file')
+					println('  hist ed     open a copy of the history file in \$EDITOR')
+					println('')
+					println('The last ${max_lines} lines of terminal output are kept in:')
+					println('  ${hist_file}')
+				}
+				else {}
+			}
 		}
 
 		// output_hook fires before post_hook for ls, echo, and external commands.

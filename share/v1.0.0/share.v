@@ -18,6 +18,19 @@ fn main() {
 	match op {
 		'capabilities' {
 			println('command share')
+			println('help')
+		}
+		'help' {
+			cmd := if os.args.len > 2 { os.args[2] } else { '' }
+			match cmd {
+				'share', '' {
+					println('share — upload a file to dpaste.com and print the URL')
+					println('')
+					println('Usage:')
+					println('  share <file>   upload <file> and print the resulting URL')
+				}
+				else {}
+			}
 		}
 		'run' {
 			cmd := if os.args.len > 2 { os.args[2] } else { '' }

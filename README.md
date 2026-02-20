@@ -39,6 +39,7 @@ Each plugin is a self-contained V program that responds to arguments passed by v
 | `output_hook` | `output_hook <cmdline> <exit_code> <output>` | Called after every command with its captured stdout |
 | `completion` | `complete <input_line>` | Provides tab-completion candidates for the current input |
 | `mux_status` | `mux_status` | Contributes text to the multiplexer status bar |
+| `help` | `help [command]` | Print help text for the plugin or a specific command (called by the built-in `help` command) |
 
 ### Hook details
 
@@ -53,6 +54,8 @@ Each plugin is a self-contained V program that responds to arguments passed by v
 **`mux_status`** — vlsh calls `<binary> mux_status` roughly once per second and displays the output as centered text in the multiplexer status bar. Keep the output short and avoid trailing newlines.
 
 **`prompt`** — vlsh calls `<binary> prompt` before each prompt is drawn and prints the returned line above the `- ` prompt line. Return an empty string (or print nothing) when the plugin has nothing to show.
+
+**`help`** — vlsh calls `<binary> help [command]` when the user runs `help <cmd>` and the plugin owns that command, or `help` with no arguments to list all plugin-contributed commands. The plugin should print its help text to stdout. Plugins that declare `help` are integrated into vlsh's built-in `help` command.
 
 ## Repository layout
 
@@ -134,6 +137,11 @@ your_plugin mux_status
 ```
 Print a short string to display in the mux status bar. Called roughly once per second.
 
+```
+your_plugin help [command]
+```
+Print help text for the plugin or a specific command. Called by the built-in `help` command. If a command name is supplied as the third argument (`os.args[2]`), print help for that command specifically; otherwise print general help for the plugin.
+
 ### Minimal example
 
 ```v
@@ -152,6 +160,7 @@ fn main() {
             println('output_hook')
             println('completion')
             println('mux_status')
+            println('help')
         }
         'run' {
             cmd := if os.args.len > 2 { os.args[2] } else { '' }
@@ -181,6 +190,13 @@ fn main() {
         }
         'mux_status' {
             println('my status')
+        }
+        'help' {
+            // os.args[2] is the optional command name
+            println('hello - greet someone (example plugin command)')
+            println('')
+            println('Usage:')
+            println('  hello [name]   Print "Hello, <name>!"')
         }
         else {}
     }

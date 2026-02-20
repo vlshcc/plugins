@@ -28,6 +28,15 @@ fn main() {
 	match op {
 		'capabilities' {
 			println('prompt')
+			println('help')
+		}
+		'help' {
+			println('git_mood — shows an emoji above the prompt reflecting the git working-tree state')
+			println('')
+			println('  ✅   working tree is clean')
+			println('  😡   uncommitted changes present')
+			println('')
+			println('Nothing is shown outside a git repository.')
 		}
 		'prompt' {
 			line := git_mood_line()

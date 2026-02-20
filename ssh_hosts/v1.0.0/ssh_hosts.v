@@ -129,6 +129,18 @@ fn main() {
 	match op {
 		'capabilities' {
 			println('completion')
+			println('help')
+		}
+		'help' {
+			println('ssh_hosts — tab-completion for ssh commands')
+			println('')
+			println('Pressing Tab after "ssh <prefix>" completes hostnames from:')
+			println('  ~/.ssh/config       explicit Host entries (wildcards excluded)')
+			println('  ~/.ssh/known_hosts  hostnames from the known-hosts file')
+			println('')
+			println('Examples:')
+			println('  ssh web<Tab>     → ssh webserver, ssh web01 …')
+			println('  ssh user@db<Tab> → ssh user@db1, ssh user@db2 …')
 		}
 		'complete' {
 			// The full current input line is passed as the third argument.

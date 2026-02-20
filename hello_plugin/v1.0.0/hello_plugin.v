@@ -30,6 +30,19 @@ fn main() {
 			println('prompt')
 			println('pre_hook')
 			println('post_hook')
+			println('help')
+		}
+		'help' {
+			cmd := if os.args.len > 2 { os.args[2] } else { '' }
+			match cmd {
+				'hello', '' {
+					println('hello - greet someone (example plugin command)')
+					println('')
+					println('Usage:')
+					println('  hello [name]   Print "Hello, <name>!"')
+				}
+				else {}
+			}
 		}
 		'run' {
 			cmd := if os.args.len > 2 { os.args[2] } else { '' }

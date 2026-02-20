@@ -234,6 +234,26 @@ fn main() {
 	match op {
 		'capabilities' {
 			println('command vman')
+			println('help')
+		}
+		'help' {
+			cmd := if os.args.len > 2 { os.args[2] } else { '' }
+			match cmd {
+				'vman', '' {
+					println('vman — V module documentation pager')
+					println('')
+					println('Usage:')
+					println('  vman <module>   fetch and display V module documentation')
+					println('')
+					println('Examples:')
+					println('  vman os')
+					println('  vman strings')
+					println('  vman net.http')
+					println('')
+					println('Documentation is fetched from https://modules.vlang.io/')
+				}
+				else {}
+			}
 		}
 		'run' {
 			cmd := if os.args.len > 2 { os.args[2] } else { '' }

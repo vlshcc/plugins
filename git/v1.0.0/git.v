@@ -57,6 +57,14 @@ fn main() {
 	match op {
 		'capabilities' {
 			println('prompt')
+			println('help')
+		}
+		'help' {
+			println('git — shows the current git branch and short commit hash above the prompt')
+			println('')
+			println('Colours can be configured in ~/.vlshrc:')
+			println('  style_git_bg=R,G,B   background colour (default: 44,59,71)')
+			println('  style_git_fg=R,G,B   foreground colour (default: 251,255,234)')
 		}
 		'prompt' {
 			line := git_prompt_line()
