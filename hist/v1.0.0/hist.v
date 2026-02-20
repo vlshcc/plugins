@@ -49,7 +49,9 @@ fn main() {
 			if !entry.ends_with('\n') {
 				entry += '\n'
 			}
-			os.append_file(hist_file, entry) or {}
+			mut f := os.open_file(hist_file, 'a') or { return }
+			f.write_string(entry) or {}
+			f.close()
 			trim_to_max(hist_file)
 		}
 
@@ -69,7 +71,7 @@ fn main() {
 							}
 							editor := os.getenv('EDITOR')
 							if editor == '' {
-								eprintln('hist: $EDITOR is not set')
+								eprintln('hist: \$EDITOR is not set')
 								exit(1)
 							}
 							content := os.read_file(hist_file) or {
