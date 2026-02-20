@@ -5,8 +5,9 @@
 //   cp hist.v ~/.vlsh/plugins/hist/v1.0.0/hist.v
 //   Then inside vlsh: plugins reload
 //
-// Every command's captured output is appended to ~/.vlsh/hist_output.txt.
-// After each append the file is trimmed so it never exceeds 5000 lines.
+// output_hook is called after every command. The command line is always
+// recorded; captured output (available for piped commands) is appended
+// when present. The file is trimmed to 5000 lines after each write.
 //
 // Usage:
 //   hist        — print the path to the history file
@@ -39,16 +40,25 @@ fn main() {
 		}
 
 		// output_hook <cmdline> <exit_code> <output>
+		// Called for every command; output is non-empty only for piped commands.
 		'output_hook' {
-			output := if os.args.len > 4 { os.args[4] } else { '' }
-			if output == '' {
+			cmdline := if os.args.len > 2 { os.args[2] } else { '' }
+			output  := if os.args.len > 4 { os.args[4] } else { '' }
+
+			if cmdline == '' || cmdline.starts_with('plugins ') {
 				return
 			}
-			os.mkdir_all(os.dir(hist_file)) or {}
-			mut entry := output
-			if !entry.ends_with('\n') {
-				entry += '\n'
+
+			mut entry := '$ ${cmdline}\n'
+			if output != '' {
+				entry += output
+				if !output.ends_with('\n') {
+					entry += '\n'
+				}
 			}
+			entry += '\n'
+
+			os.mkdir_all(os.dir(hist_file)) or {}
 			mut f := os.open_file(hist_file, 'a') or { return }
 			f.write_string(entry) or {}
 			f.close()
