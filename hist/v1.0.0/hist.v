@@ -1,10 +1,12 @@
-// hist — terminal output history plugin for vlsh.
+// hist — vlsh plugin that keeps a rolling 5000-line terminal output history.
 //
-// Copy this file to ~/.vlsh/plugins/hist.v
-// vlsh will compile it automatically on the next start (requires `v` in PATH).
+// Install:
+//   mkdir -p ~/.vlsh/plugins/hist/v1.0.0
+//   cp hist.v ~/.vlsh/plugins/hist/v1.0.0/hist.v
+//   Then inside vlsh: plugins reload
 //
-// Uses tmux capture-pane to snapshot the last 5000 lines of terminal output
-// after every command, storing them in ~/.vlsh/hist_output.txt.
+// Every command's captured output is appended to ~/.vlsh/hist_output.txt.
+// After each append the file is trimmed so it never exceeds 5000 lines.
 //
 // Usage:
 //   hist        — print the path to the history file
@@ -14,23 +16,17 @@ module main
 
 import os
 
+const hist_file = os.home_dir() + '/.vlsh/hist_output.txt'
 const max_lines = 5000
 
-fn hist_path() string {
-	return os.join_path(os.home_dir(), '.vlsh', 'hist_output.txt')
-}
-
-fn capture_and_save() {
-	if os.getenv('TMUX') == '' {
-		return // not inside a tmux session
-	}
-	result := os.execute('tmux capture-pane -p -S -${max_lines}')
-	if result.exit_code != 0 {
+fn trim_to_max(path string) {
+	content := os.read_file(path) or { return }
+	lines := content.split('\n')
+	if lines.len <= max_lines {
 		return
 	}
-	path := hist_path()
-	os.mkdir_all(os.dir(path)) or {}
-	os.write_file(path, result.output) or {}
+	trimmed := lines[lines.len - max_lines..].join('\n')
+	os.write_file(path, trimmed) or {}
 }
 
 fn main() {
@@ -38,9 +34,25 @@ fn main() {
 
 	match op {
 		'capabilities' {
+			println('output_hook')
 			println('command hist')
-			println('post_hook')
 		}
+
+		// output_hook <cmdline> <exit_code> <output>
+		'output_hook' {
+			output := if os.args.len > 4 { os.args[4] } else { '' }
+			if output == '' {
+				return
+			}
+			os.mkdir_all(os.dir(hist_file)) or {}
+			mut entry := output
+			if !entry.ends_with('\n') {
+				entry += '\n'
+			}
+			os.append_file(hist_file, entry) or {}
+			trim_to_max(hist_file)
+		}
+
 		'run' {
 			cmd := if os.args.len > 2 { os.args[2] } else { '' }
 			match cmd {
@@ -48,11 +60,10 @@ fn main() {
 					sub := if os.args.len > 3 { os.args[3] } else { '' }
 					match sub {
 						'' {
-							println(hist_path())
+							println(hist_file)
 						}
 						'ed' {
-							path := hist_path()
-							if !os.exists(path) {
+							if !os.exists(hist_file) {
 								eprintln('hist: no history captured yet — run a command first')
 								exit(1)
 							}
@@ -61,7 +72,7 @@ fn main() {
 								eprintln('hist: $EDITOR is not set')
 								exit(1)
 							}
-							content := os.read_file(path) or {
+							content := os.read_file(hist_file) or {
 								eprintln('hist: could not read history file: ${err}')
 								exit(1)
 							}
@@ -81,9 +92,7 @@ fn main() {
 				else {}
 			}
 		}
-		'post_hook' {
-			capture_and_save()
-		}
+
 		else {}
 	}
 }
