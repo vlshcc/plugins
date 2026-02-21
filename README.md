@@ -90,6 +90,7 @@ Version directories follow [Semantic Versioning](https://semver.org/) with a `v`
 | `v_man` | Adds a `vman <module>` command that fetches and displays V module documentation from [modules.vlang.io](https://modules.vlang.io/) |
 | `hist` | Captures terminal output after every command via tmux and stores it in `~/.vlsh/hist_output.txt` |
 | `share` | Uploads any text file to dpaste.com and prints the resulting URL |
+| `gem` | A minimal Gemini protocol browser — renders gemtext with ANSI colours; follow numbered links with `gem <n>` |
 
 ## Writing a plugin
 

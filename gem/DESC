@@ -1,0 +1,4 @@
+name        = "gem"
+author      = "David Satime Wallin"
+email       = "david@snogerup.com"
+description = "A minimal Gemini protocol browser. Fetches and renders gemtext pages with ANSI colours; follow numbered links with 'gem <n>'."
