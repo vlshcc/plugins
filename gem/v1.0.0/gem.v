@@ -8,7 +8,7 @@
 // Usage:
 //   gem <gemini-url>        fetch and render a Gemini page
 //   gem <n>                 follow link n from the last visited page
-//   gem search <query>      search Kennedy, GUS, and Geminispace simultaneously
+//   gem search <query>      search Kennedy, Gemplex, and Geminispace simultaneously
 //
 // Gemini protocol overview:
 //   1. Open a TLS connection to host:1965
@@ -47,7 +47,7 @@ struct SearchEngine {
 // Adjust these if a capsule changes its search endpoint.
 const search_engines = [
 	SearchEngine{ name: 'Kennedy',     url: 'gemini://kennedy.gemi.dev/' },
-	SearchEngine{ name: 'GUS',         url: 'gemini://gus.guru/' },
+	SearchEngine{ name: 'Gemplex',      url: 'gemini://gemplex.space/' },
 	SearchEngine{ name: 'Geminispace', url: 'gemini://geminispace.info/search' },
 ]
 
@@ -467,7 +467,7 @@ fn main() {
 					println('  follows any result regardless of which engine returned it.')
 					println('  Engines queried:')
 					println('    Kennedy     gemini://kennedy.gemi.dev/')
-					println('    GUS         gemini://gus.guru/')
+					println('    Gemplex     gemini://gemplex.space/')
 					println('    Geminispace gemini://geminispace.info/search')
 					println('')
 					println('Gemtext rendering:')
