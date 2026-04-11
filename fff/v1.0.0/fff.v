@@ -3,7 +3,68 @@ module main
 
 import os
 import strings
-import term
+
+#pkgconfig ncurses
+
+#include <ncurses.h>
+
+fn C.initscr() voidptr
+fn C.endwin() int
+fn C.refresh() int
+fn C.getch() int
+fn C.wmove(voidptr, int, int) int
+fn C.mvwaddstr(voidptr, int, int, &char) int
+fn C.wclrtoeol(voidptr) int
+fn C.wclear(voidptr) int
+fn C.werase(voidptr) int
+fn C.wattroff(voidptr, int) int
+fn C.wattron(voidptr, int) int
+fn C.wattrset(voidptr, int) int
+fn C.cbreak() int
+fn C.noecho() int
+fn C.keypad(voidptr, bool) int
+fn C.nonl() int
+fn C.curs_set(int) int
+fn C.flushinp() int
+fn C.def_prog_mode() int
+fn C.reset_prog_mode() int
+fn C.reset_shell_mode() int
+fn C.COLOR_PAIR(int) int
+fn C.getmaxy(voidptr) int
+fn C.getmaxx(voidptr) int
+fn C.start_color() int
+fn C.use_default_colors() int
+fn C.has_colors() bool
+fn C.init_pair(int, int, int) int
+fn C.intrflush(voidptr, bool) int
+fn C.dup(int) int
+fn C.dup2(int, int) int
+fn C.close(int) int
+fn C.getchar() int
+
+pub const nc_a_reverse = 262144 // A_REVERSE
+pub const nc_a_bold = 2097152 // A_BOLD
+
+// KEY_* from ncurses.h (octal constants)
+pub const nc_key_down = 258 // 0402
+pub const nc_key_up = 259 // 0403
+pub const nc_key_left = 260 // 0404
+pub const nc_key_right = 261 // 0405
+pub const nc_key_resize = 410 // 0632 KEY_RESIZE
+
+pub fn nc_suspend_for_shell() {
+	C.def_prog_mode()
+	C.endwin()
+	C.flushinp()
+}
+
+pub fn nc_resume_after_shell() {
+	C.reset_prog_mode()
+	C.refresh()
+}
+
+pub const nc_key_backspace = 263
+pub const nc_key_enter = 343
 
 const version = '2.2-v'
 
@@ -68,6 +129,10 @@ mut:
 	fav              [9]string
 	last_cols        int
 	last_lines       int
+	nc_win           voidptr
+	stdin_saved      int = -1
+	ext_pair_cache   map[string]int
+	next_ext_pair    int = 20
 }
 
 fn getenv_def(name string, def string) string {
@@ -142,36 +207,132 @@ fn (mut a App) get_os_defaults() {
 	}
 }
 
+fn parse_ls_sgr_fg(s string) int {
+	if s == '' {
+		return -1
+	}
+	parts := s.split(';')
+	for p in parts {
+		if p.len == 2 && (p[0] == `3` || p[0] == `4`) && p[1] >= `0` && p[1] <= `7` {
+			return int(p[1] - `0`)
+		}
+	}
+	for i := 0; i < parts.len; i++ {
+		if parts[i] == '38' && i + 2 < parts.len && parts[i + 1] == '5' {
+			n := parts[i + 2].int()
+			return n % 8
+		}
+	}
+	return -1
+}
+
+fn (mut a App) nc_init_color_pairs() {
+	c1 := getenv_int('FFF_COL1', 2) % 8
+	c2 := getenv_int('FFF_COL2', 1) % 8
+	c3 := getenv_int('FFF_COL3', 1) % 8
+	c5 := getenv_int('FFF_COL5', 0) % 8
+	C.init_pair(1, c1, -1)
+	C.init_pair(2, 6, -1)
+	C.init_pair(3, 1, -1)
+	C.init_pair(4, 2, -1)
+	C.init_pair(5, 7, -1)
+	C.init_pair(6, c3, -1)
+	C.init_pair(7, c5, c2)
+}
+
+fn (mut a App) pair_for_ext(ext string) int {
+	if ext in a.ext_pair_cache {
+		return a.ext_pair_cache[ext]
+	}
+	if a.next_ext_pair >= 256 {
+		return 5
+	}
+	code := a.ls_ext_map[ext] or { return 5 }
+	mut fg := parse_ls_sgr_fg(code)
+	if fg < 0 {
+		fg = 7
+	}
+	pid := a.next_ext_pair
+	a.next_ext_pair++
+	C.init_pair(pid, fg, -1)
+	a.ext_pair_cache[ext] = pid
+	return pid
+}
+
 fn (mut a App) get_term_size() {
-	w, h := term.get_terminal_size()
-	a.columns = w
-	a.lines = h
-	a.last_cols = w
-	a.last_lines = h
+	if a.nc_win == 0 {
+		return
+	}
+	a.columns = C.getmaxx(a.nc_win) + 1
+	a.lines = C.getmaxy(a.nc_win) + 1
+	a.last_cols = a.columns
+	a.last_lines = a.lines
 	a.max_items = if a.lines > 3 { a.lines - 3 } else { 1 }
 }
 
 fn (mut a App) check_resize() {
-	w, h := term.get_terminal_size()
-	if w != a.last_cols || h != a.last_lines {
-		a.get_term_size()
+	oc := a.columns
+	ol := a.lines
+	a.get_term_size()
+	if a.columns != oc || a.lines != ol {
 		a.redraw(false)
 	}
 }
 
 fn (mut a App) setup_terminal() {
-	print('\x1b[?1049h\x1b[?7l\x1b[?25l\x1b[2J\x1b[1;${a.max_items}r')
-	os.execute('stty -echo -icanon min 0 time 1 2>/dev/null')
+	if os.is_atty(0) <= 0 {
+		mut tty := os.open_file('/dev/tty', 'r') or {
+			eprintln('fff: need a terminal (stdin is not a tty and /dev/tty could not be opened)')
+			exit(1)
+		}
+		a.stdin_saved = C.dup(0)
+		if a.stdin_saved < 0 {
+			eprintln('fff: dup stdin failed')
+			exit(1)
+		}
+		unsafe {
+			C.dup2(tty.fd, 0)
+		}
+		os.fd_close(tty.fd)
+	}
+	w := C.initscr()
+	if w == 0 {
+		eprintln('fff: initscr failed')
+		exit(1)
+	}
+	a.nc_win = w
+	C.cbreak()
+	C.noecho()
+	C.keypad(a.nc_win, true)
+	C.nonl()
+	C.curs_set(0)
+	C.intrflush(a.nc_win, false)
+	if C.has_colors() {
+		C.start_color()
+		C.use_default_colors()
+		a.nc_init_color_pairs()
+	}
+	a.get_term_size()
 }
 
 fn (mut a App) reset_terminal() {
-	print('\x1b[?7h\x1b[?25h\x1b[2J\x1b[;r\x1b[?1049l')
-	os.execute('stty echo icanon 2>/dev/null')
+	C.endwin()
+	if a.stdin_saved >= 0 {
+		C.dup2(a.stdin_saved, 0)
+		C.close(a.stdin_saved)
+		a.stdin_saved = -1
+	}
+}
+
+fn (mut a App) nc_clear_list_area() {
+	for y := 0; y < a.max_items; y++ {
+		C.wmove(a.nc_win, y, 0)
+		C.wclrtoeol(a.nc_win)
+	}
 }
 
 fn (mut a App) clear_screen() {
-	tmux_fix := if getenv_def('TMUX', '') != '' { '\x1b[2J' } else { '' }
-	print('\x1b[${a.lines - 2}H\x1b[9999C\x1b[1J${tmux_fix}\x1b[1;${a.max_items}r')
+	a.nc_clear_list_area()
 }
 
 fn (mut a App) get_mime(path string) {
@@ -205,75 +366,79 @@ fn esc_name(name string) string {
 	return b.str()
 }
 
-fn (mut a App) sgr_ls(key string, fallback string) string {
-	return getenv_def(key, fallback)
-}
-
-fn (mut a App) print_line(idx int) {
+fn (mut a App) nc_print_line(screen_y int, idx int) {
 	if idx < 0 || idx >= a.list.len {
 		return
 	}
 	item := a.list[idx]
+	C.wmove(a.nc_win, screen_y, 0)
+	C.wclrtoeol(a.nc_win)
 	if item == 'empty' && a.list.len == 1 {
-		print('\r\x1b[2mempty\x1b[m\r')
+		C.wattrset(a.nc_win, C.COLOR_PAIR(5))
+		C.mvwaddstr(a.nc_win, screen_y, 0, c'empty')
+		C.wattrset(a.nc_win, 0)
 		return
 	}
 	if item == '' {
 		return
 	}
-	mut seq := ''
-	mut suf := ''
 	base := os.base(item)
 	mut ext := if base.contains('.') && base != '.' && base != '..' {
 		base.all_after_last('.')
 	} else {
 		''
 	}
-
+	mut pair := 5
+	mut suf := ''
 	if os.is_dir(item) {
-		di := a.sgr_ls('DI', '1;34')
-		c1 := getenv_int('FFF_COL1', 2)
-		seq = '\x1b[${di};3${c1}m'
+		pair = 1
 		suf = '/'
 	} else if os.is_link(item) {
 		target := os.real_path(item)
 		if target == '' || !os.exists(target) {
-			seq = '\x1b[${a.sgr_ls('MI', '01;31;7')}m'
+			pair = 3
 		} else {
-			seq = '\x1b[${a.sgr_ls('LN', '01;36')}m'
+			pair = 2
 		}
 	} else if os.is_file(item) {
 		if os.is_executable(item) {
-			seq = '\x1b[${a.sgr_ls('EX', '01;32')}m'
+			pair = 4
 		} else if a.ls_colors_on && ext != '' && ext != base {
-			if code := a.ls_ext_map[ext] {
-				seq = '\x1b[${code}m'
-			} else {
-				seq = '\x1b[${a.sgr_ls('FI', '37')}m'
-			}
+			pair = a.pair_for_ext(ext)
 		} else {
-			seq = '\x1b[${a.sgr_ls('FI', '37')}m'
+			pair = 5
 		}
+	}
+	marked := a.marked_files[idx] == item
+	mut attrs := int(0)
+	if marked {
+		attrs = C.COLOR_PAIR(6)
 	} else {
-		seq = '\x1b[37m'
+		attrs = C.COLOR_PAIR(pair)
+		if os.is_file(item) && os.is_executable(item) {
+			attrs |= nc_a_bold
+		}
 	}
 	if idx == a.scroll {
-		c4 := getenv_int('FFF_COL4', 6)
-		seq += '\x1b[1;3${c4};7m'
+		attrs |= nc_a_reverse
 	}
-	if a.marked_files[idx] == item {
-		c3 := getenv_int('FFF_COL3', 1)
-		seq += '\x1b[3${c3}m${a.mark_pre}'
-		suf += a.mark_post
-	}
+	C.wattrset(a.nc_win, attrs)
 	disp := esc_name(base)
-	print('\r${a.file_pre}${seq}${disp}${suf}${a.file_post}\x1b[m\r')
+	if marked {
+		line := '${a.file_pre}${a.mark_pre}${disp}${suf}${a.mark_post}${a.file_post}'
+		C.mvwaddstr(a.nc_win, screen_y, 0, line.str)
+	} else {
+		line := '${a.file_pre}${disp}${suf}${a.file_post}'
+		C.mvwaddstr(a.nc_win, screen_y, 0, line.str)
+	}
+	C.wattrset(a.nc_win, 0)
 }
 
 fn (mut a App) read_dir() {
 	pwd := os.getwd()
 	a.pwd = pwd
 	print('\x1b]2;fff: ${pwd}\x07')
+	os.flush()
 	mut entries := os.ls(pwd) or { []string{} }
 	mut dirs := []string{}
 	mut files := []string{}
@@ -328,33 +493,38 @@ fn (mut a App) draw_dir() {
 	if scroll_end > a.list.len {
 		scroll_end = a.list.len
 	}
-	print('\x1b[H')
 	for i in scroll_start .. scroll_end {
-		if i > scroll_start {
-			print('\n')
-		}
-		a.print_line(i)
+		line_y := i - scroll_start
+		a.nc_print_line(line_y, i)
 	}
-	print('\x1b[${scroll_new_pos}H')
 	a.y = scroll_new_pos
+	C.refresh()
 }
 
 fn (mut a App) status_line(extra string) {
-	c5 := getenv_int('FFF_COL5', 0)
-	c2 := getenv_int('FFF_COL2', 1)
+	row := a.lines - 2
 	pwd_show := a.pwd
 	mut mark_ui := ''
 	if a.marked_files.len > 0 {
 		mark_ui = '[${a.marked_files.len}] selected (${a.file_program.join(' ')}) [p] -> '
 	}
-	print('\x1b7\x1b[${a.lines - 1}H\x1b[3${c5};4${c2}m${' '.repeat(a.columns)}\r')
-	print('(${a.scroll + 1}/${a.list_total + 1}) ${mark_ui}')
+	mut body := '(${a.scroll + 1}/${a.list_total + 1}) ${mark_ui}'
 	if extra != '' {
-		print(extra)
+		body += extra
 	} else {
-		print(pwd_show)
+		body += pwd_show
 	}
-	print('\x1b[m\x1b[${a.lines}H\x1b[K\x1b8')
+	if body.len > a.columns {
+		body = body[..a.columns]
+	}
+	pad := ' '.repeat(a.columns)
+	C.wattrset(a.nc_win, C.COLOR_PAIR(7))
+	C.mvwaddstr(a.nc_win, row, 0, pad.str)
+	C.mvwaddstr(a.nc_win, row, 0, body.str)
+	C.wattrset(a.nc_win, 0)
+	C.wmove(a.nc_win, a.lines - 1, 0)
+	C.wclrtoeol(a.nc_win)
+	C.refresh()
 }
 
 fn (mut a App) redraw(full bool) {
@@ -367,29 +537,22 @@ fn (mut a App) redraw(full bool) {
 	a.status_line('')
 }
 
-fn read_byte_timeout() u8 {
-	mut stdin := os.stdin()
-	mut b := []u8{len: 1}
-	n := stdin.read(mut b) or { return 0 }
-	if n <= 0 {
-		return 0
-	}
-	return b[0]
-}
-
 fn (mut a App) cmd_line(prompt string, mode string) string {
 	mut reply := ''
-	print('\x1b7\x1b[${a.lines}H\x1b[?25h')
+	row := a.lines - 1
+	C.curs_set(1)
 	for {
-		print('\r\x1b[K${prompt}${reply}')
-		os.flush()
-		ch := read_byte_timeout()
-		if ch == 0 {
+		line := '${prompt}${reply}'
+		C.wmove(a.nc_win, row, 0)
+		C.wclrtoeol(a.nc_win)
+		C.mvwaddstr(a.nc_win, row, 0, line.str)
+		C.refresh()
+		ch := C.getch()
+		if ch == nc_key_resize {
 			a.check_resize()
-			print('\x1b[${a.lines}H\x1b[?25h')
 			continue
 		}
-		if ch == 127 || ch == 8 {
+		if ch == nc_key_backspace || ch == 127 || ch == 8 {
 			if reply.len > 0 {
 				reply = reply[..reply.len - 1]
 			}
@@ -399,15 +562,21 @@ fn (mut a App) cmd_line(prompt string, mode string) string {
 			reply = ''
 			break
 		}
-		if ch == `\n` || ch == `\r` {
+		if ch == `\n` || ch == `\r` || ch == nc_key_enter {
 			break
 		}
-		reply += ch.ascii_str()
+		if ch < 0 || ch > 255 {
+			continue
+		}
+		reply += u8(ch).ascii_str()
 		if mode == 'search' {
 			a.do_search(reply)
 		}
 	}
-	print('\x1b[2K\x1b[?25l\x1b8')
+	C.curs_set(0)
+	C.wmove(a.nc_win, row, 0)
+	C.wclrtoeol(a.nc_win)
+	C.refresh()
 	return reply
 }
 
@@ -476,16 +645,16 @@ fn (mut a App) open_path(path string) {
 				exit(0)
 			}
 			ed := getenv_def('VISUAL', getenv_def('EDITOR', 'vi'))
-			a.reset_terminal()
+			nc_suspend_for_shell()
 			os.system('${ed} "${path}"')
-			a.setup_terminal()
+			nc_resume_after_shell()
 			a.redraw(false)
 			return
 		}
 		op := getenv_def('FFF_OPENER', a.opener)
-		a.reset_terminal()
+		nc_suspend_for_shell()
 		os.system('nohup "${op}" "${path}" >/dev/null 2>&1 &')
-		a.setup_terminal()
+		nc_resume_after_shell()
 		a.redraw(false)
 	}
 }
@@ -540,8 +709,7 @@ fn (mut a App) mark_key(op u8) {
 			a.marked_files[i] = a.list[i]
 			a.mark_dir = a.pwd
 		}
-		print('\x1b[K')
-		a.print_line(i)
+		a.redraw(false)
 	}
 	a.status_line('')
 }
@@ -550,18 +718,18 @@ fn (mut a App) paste() {
 	if a.marked_files.len == 0 {
 		return
 	}
-	a.reset_terminal()
+	nc_suspend_for_shell()
 	print('fff: Running ${a.file_program[0]}\n')
 	if a.file_program[0] == 'bulk_rename' {
 		a.bulk_rename()
-		a.setup_terminal()
+		nc_resume_after_shell()
 		a.marked_files.clear()
 		a.redraw(true)
 		return
 	}
 	if a.file_program[0] == 'trash' {
 		a.do_trash()
-		a.setup_terminal()
+		nc_resume_after_shell()
 		a.marked_files.clear()
 		a.redraw(true)
 		return
@@ -572,7 +740,7 @@ fn (mut a App) paste() {
 	}
 	args << '.'
 	os.system(args.join(' '))
-	a.setup_terminal()
+	nc_resume_after_shell()
 	a.marked_files.clear()
 	a.redraw(true)
 }
@@ -580,7 +748,7 @@ fn (mut a App) paste() {
 fn (mut a App) do_trash() {
 	print('Trash [y/n]? ')
 	os.flush()
-	b := read_byte_timeout()
+	b := C.getchar()
 	print('\n')
 	if b != `y` && b != `Y` {
 		return
@@ -651,9 +819,9 @@ fn (mut a App) spawn_shell() {
 	sh := getenv_def('SHELL', '/bin/sh')
 	lvl := getenv_int('FFF_LEVEL', 0)
 	os.setenv('FFF_LEVEL', '${lvl + 1}', true)
-	a.reset_terminal()
+	nc_suspend_for_shell()
 	os.system('cd "${a.pwd}" && "${sh}"')
-	a.setup_terminal()
+	nc_resume_after_shell()
 	a.redraw(true)
 }
 
@@ -709,30 +877,60 @@ fn fff_main(user_args []string) {
 		a.parse_ls_colors()
 	}
 	a.hidden = getenv_int('FFF_HIDDEN', 0) == 1
-	a.get_term_size()
 	defer {
 		a.reset_terminal()
 	}
 	a.setup_terminal()
 	a.redraw(true)
 	for {
-		if os.is_atty(1) <= 0 {
-			exit(1)
-		}
-		ch := read_byte_timeout()
-		if ch == 0 {
+		ch := C.getch()
+		if ch == nc_key_resize {
 			a.check_resize()
 			continue
 		}
-		a.handle_key(ch)
+		if ch == nc_key_up {
+			a.handle_key(`k`)
+			continue
+		}
+		if ch == nc_key_down {
+			a.handle_key(`j`)
+			continue
+		}
+		if ch == nc_key_left {
+			a.key_left()
+			continue
+		}
+		if ch == nc_key_right {
+			a.key_right()
+			continue
+		}
+		if ch >= 0 && ch <= 255 {
+			a.handle_key(u8(ch))
+		}
+	}
+}
+
+fn (mut a App) key_left() {
+	if a.search == 1 && a.search_end_early != 1 {
+		a.open_path(a.pwd)
+		a.search = 0
+		return
+	}
+	if a.pwd != '/' && a.pwd != '' {
+		parent := os.dir(a.pwd)
+		a.oldpwd = a.pwd
+		a.find_previous = 1
+		a.open_path(parent)
+	}
+}
+
+fn (mut a App) key_right() {
+	if a.scroll < a.list.len {
+		a.open_path(a.list[a.scroll])
 	}
 }
 
 fn (mut a App) handle_key(ch u8) {
-	if ch == 27 {
-		a.handle_escape()
-		return
-	}
 	match ch {
 		`q` {
 			cdfile := getenv_def('FFF_CD_FILE', os.join_path(getenv_def('XDG_CACHE_HOME',
@@ -747,27 +945,13 @@ fn (mut a App) handle_key(ch u8) {
 		`j` {
 			if a.scroll < a.list_total {
 				a.scroll++
-				if a.y < a.max_items {
-					a.y++
-				}
-				a.print_line(a.scroll - 1)
-				print('\n')
-				a.print_line(a.scroll)
-				a.status_line('')
+				a.redraw(false)
 			}
 		}
 		`k` {
 			if a.scroll > 0 {
 				a.scroll--
-				a.print_line(a.scroll + 1)
-				if a.y < 2 {
-					print('\x1b[L')
-				} else {
-					print('\x1b[A')
-					a.y--
-				}
-				a.print_line(a.scroll)
-				a.status_line('')
+				a.redraw(false)
 			}
 		}
 		`h` {
@@ -871,10 +1055,10 @@ fn (mut a App) handle_key(ch u8) {
 			if a.scroll < a.list.len {
 				p := a.list[a.scroll]
 				st := getenv_def('FFF_STAT_CMD', 'stat')
-				a.reset_terminal()
+				nc_suspend_for_shell()
 				os.system('${st} "${p}"')
-				read_byte_timeout()
-				a.setup_terminal()
+				C.getchar()
+				nc_resume_after_shell()
 				a.redraw(false)
 			}
 		}
@@ -924,43 +1108,12 @@ fn (mut a App) handle_key(ch u8) {
 	}
 }
 
-fn (mut a App) handle_escape() {
-	b1 := read_byte_timeout()
-	if b1 == 0 {
-		return
-	}
-	if b1 != `[` && b1 != `O` {
-		return
-	}
-	b2 := read_byte_timeout()
-	if b2 == 0 {
-		return
-	}
-	if b2 == `A` {
-		a.handle_key(`k`)
-		return
-	}
-	if b2 == `B` {
-		a.handle_key(`j`)
-		return
-	}
-	if b2 == `C` {
-		if a.scroll < a.list.len {
-			a.open_path(a.list[a.scroll])
+// csi_final_byte_from_tail returns the CSI/SS3 final byte (e.g. C in "1;5C"). Used by tests.
+fn csi_final_byte_from_tail(tail []u8) u8 {
+	for b in tail {
+		if b >= 0x40 && b <= 0x7e {
+			return b
 		}
-		return
 	}
-	if b2 == `D` {
-		if a.search == 1 {
-			a.open_path(a.pwd)
-			a.search = 0
-			return
-		}
-		if a.pwd != '/' {
-			a.oldpwd = a.pwd
-			a.find_previous = 1
-			a.open_path(os.dir(a.pwd))
-		}
-		return
-	}
+	return 0
 }
