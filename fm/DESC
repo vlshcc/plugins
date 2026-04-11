@@ -1,0 +1,4 @@
+name = "fm"
+author = "sarmonsiill"
+email = "sarmonsiill@tilde.guru"
+description = "Fast terminal file manager (fm), vlsh plugin entrypoint — same as `v run fm.v`"

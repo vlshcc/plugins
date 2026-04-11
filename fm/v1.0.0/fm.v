@@ -1,4 +1,4 @@
-// fff — fast file manager (ported from bash to V / vsh).
+// fm — fast file manager (ported from bash to V / vsh).
 module main
 
 import os
@@ -72,29 +72,29 @@ fn main() {
 	if os.args.len >= 2 {
 		match os.args[1] {
 			'capabilities' {
-				println('command fff')
+				println('command fm')
 				println('help')
 				return
 			}
 			'run' {
-				if os.args.len >= 3 && os.args[2] == 'fff' {
+				if os.args.len >= 3 && os.args[2] == 'fm' {
 					mut args := []string{}
 					if os.args.len > 3 {
 						args = os.args[3..].clone()
 					}
-					fff_main(args)
+					fm_main(args)
 					return
 				}
 			}
 			'help' {
-				println('fff — terminal file manager')
-				println('Usage: fff [-v|-h|-p] [directory]')
+				println('fm — terminal file manager')
+				println('Usage: fm [-v|-h|-p] [directory]')
 				return
 			}
 			else {}
 		}
 	}
-	fff_main(os.args[1..])
+	fm_main(os.args[1..])
 }
 
 struct App {
@@ -124,7 +124,7 @@ mut:
 	mime_type        string
 	file_picker      int
 	opener           string
-	fff_trash        string
+	fm_trash         string
 	hidden           bool
 	fav              [9]string
 	last_cols        int
@@ -152,13 +152,13 @@ fn getenv_int(name string, def int) int {
 }
 
 fn (mut a App) setup_options() {
-	ff := getenv_def('FFF_FILE_FORMAT', '%f')
+	ff := getenv_def('FM_FILE_FORMAT', '%f')
 	if ff.contains('%f') {
 		parts := ff.split('%f')
 		a.file_pre = parts[0]
 		a.file_post = if parts.len > 1 { parts[1..].join('%f') } else { '' }
 	}
-	mf := getenv_def('FFF_MARK_FORMAT', ' %f*')
+	mf := getenv_def('FM_MARK_FORMAT', ' %f*')
 	if mf.contains('%f') {
 		parts := mf.split('%f')
 		a.mark_pre = parts[0]
@@ -195,12 +195,12 @@ fn (mut a App) parse_ls_colors() {
 
 fn (mut a App) load_favorites() {
 	for i in 0 .. 9 {
-		a.fav[i] = getenv_def('FFF_FAV${i + 1}', '')
+		a.fav[i] = getenv_def('FM_FAV${i + 1}', '')
 	}
 }
 
 fn (mut a App) get_os_defaults() {
-	a.opener = getenv_def('FFF_OPENER', 'xdg-open')
+	a.opener = getenv_def('FM_OPENER', 'xdg-open')
 	ost := getenv_def('OSTYPE', '')
 	if ost.starts_with('darwin') {
 		a.opener = 'open'
@@ -227,10 +227,10 @@ fn parse_ls_sgr_fg(s string) int {
 }
 
 fn (mut a App) nc_init_color_pairs() {
-	c1 := getenv_int('FFF_COL1', 2) % 8
-	c2 := getenv_int('FFF_COL2', 1) % 8
-	c3 := getenv_int('FFF_COL3', 1) % 8
-	c5 := getenv_int('FFF_COL5', 0) % 8
+	c1 := getenv_int('FM_COL1', 2) % 8
+	c2 := getenv_int('FM_COL2', 1) % 8
+	c3 := getenv_int('FM_COL3', 1) % 8
+	c5 := getenv_int('FM_COL5', 0) % 8
 	C.init_pair(1, c1, -1)
 	C.init_pair(2, 6, -1)
 	C.init_pair(3, 1, -1)
@@ -282,12 +282,12 @@ fn (mut a App) check_resize() {
 fn (mut a App) setup_terminal() {
 	if os.is_atty(0) <= 0 {
 		mut tty := os.open_file('/dev/tty', 'r') or {
-			eprintln('fff: need a terminal (stdin is not a tty and /dev/tty could not be opened)')
+			eprintln('fm: need a terminal (stdin is not a tty and /dev/tty could not be opened)')
 			exit(1)
 		}
 		a.stdin_saved = C.dup(0)
 		if a.stdin_saved < 0 {
-			eprintln('fff: dup stdin failed')
+			eprintln('fm: dup stdin failed')
 			exit(1)
 		}
 		unsafe {
@@ -297,7 +297,7 @@ fn (mut a App) setup_terminal() {
 	}
 	w := C.initscr()
 	if w == 0 {
-		eprintln('fff: initscr failed')
+		eprintln('fm: initscr failed')
 		exit(1)
 	}
 	a.nc_win = w
@@ -437,7 +437,7 @@ fn (mut a App) nc_print_line(screen_y int, idx int) {
 fn (mut a App) read_dir() {
 	pwd := os.getwd()
 	a.pwd = pwd
-	print('\x1b]2;fff: ${pwd}\x07')
+	print('\x1b]2;fm: ${pwd}\x07')
 	os.flush()
 	mut entries := os.ls(pwd) or { []string{} }
 	mut dirs := []string{}
@@ -638,7 +638,7 @@ fn (mut a App) open_path(path string) {
 		if a.mime_type.starts_with('text/') || a.mime_type.contains('json')
 			|| a.mime_type.contains('empty') || a.mime_type.contains('x-empty') {
 			if a.file_picker == 1 {
-				cache := '${getenv_def('XDG_CACHE_HOME', os.join_path(os.home_dir(), '.cache'))}/fff/opened_file'
+				cache := '${getenv_def('XDG_CACHE_HOME', os.join_path(os.home_dir(), '.cache'))}/fm/opened_file'
 				os.mkdir_all(os.dir(cache)) or {}
 				os.write_file(cache, path) or {}
 				a.reset_terminal()
@@ -651,7 +651,7 @@ fn (mut a App) open_path(path string) {
 			a.redraw(false)
 			return
 		}
-		op := getenv_def('FFF_OPENER', a.opener)
+		op := getenv_def('FM_OPENER', a.opener)
 		nc_suspend_for_shell()
 		os.system('nohup "${op}" "${path}" >/dev/null 2>&1 &')
 		nc_resume_after_shell()
@@ -677,7 +677,7 @@ fn (mut a App) mark_key(op u8) {
 			a.file_program = ['ln', '-s']
 		}
 		`d`, `D` {
-			cmd := getenv_def('FFF_TRASH_CMD', '')
+			cmd := getenv_def('FM_TRASH_CMD', '')
 			if cmd != '' {
 				a.file_program = [cmd]
 			} else {
@@ -719,7 +719,7 @@ fn (mut a App) paste() {
 		return
 	}
 	nc_suspend_for_shell()
-	print('fff: Running ${a.file_program[0]}\n')
+	print('fm: Running ${a.file_program[0]}\n')
 	if a.file_program[0] == 'bulk_rename' {
 		a.bulk_rename()
 		nc_resume_after_shell()
@@ -753,7 +753,7 @@ fn (mut a App) do_trash() {
 	if b != `y` && b != `Y` {
 		return
 	}
-	cmd := getenv_def('FFF_TRASH_CMD', '')
+	cmd := getenv_def('FM_TRASH_CMD', '')
 	if cmd != '' {
 		mut parts := [cmd]
 		for _, p in a.marked_files {
@@ -762,7 +762,7 @@ fn (mut a App) do_trash() {
 		os.system(parts.join(' '))
 		return
 	}
-	tr := a.fff_trash
+	tr := a.fm_trash
 	os.mkdir_all(tr) or {}
 	for _, p in a.marked_files {
 		dest := os.join_path(tr, os.base(p))
@@ -772,7 +772,7 @@ fn (mut a App) do_trash() {
 
 fn (mut a App) bulk_rename() {
 	cache_root := getenv_def('XDG_CACHE_HOME', os.join_path(os.home_dir(), '.cache'))
-	rf := os.join_path(cache_root, 'fff/bulk_rename')
+	rf := os.join_path(cache_root, 'fm/bulk_rename')
 	os.mkdir_all(os.dir(rf)) or {}
 	mut lines := []string{}
 	for _, p in a.marked_files {
@@ -817,15 +817,15 @@ fn expand_tilde(s string) string {
 
 fn (mut a App) spawn_shell() {
 	sh := getenv_def('SHELL', '/bin/sh')
-	lvl := getenv_int('FFF_LEVEL', 0)
-	os.setenv('FFF_LEVEL', '${lvl + 1}', true)
+	lvl := getenv_int('FM_LEVEL', 0)
+	os.setenv('FM_LEVEL', '${lvl + 1}', true)
 	nc_suspend_for_shell()
 	os.system('cd "${a.pwd}" && "${sh}"')
 	nc_resume_after_shell()
 	a.redraw(true)
 }
 
-fn fff_main(user_args []string) {
+fn fm_main(user_args []string) {
 	mut a := App{}
 	mut start_dir := ''
 	mut i := 0
@@ -833,12 +833,12 @@ fn fff_main(user_args []string) {
 		arg := user_args[i]
 		match arg {
 			'-v' {
-				println('fff ${version}')
+				println('fm ${version}')
 				return
 			}
 			'-h' {
-				println('fff ${version}')
-				println('Usage: fff [-v|-h|-p] [directory]')
+				println('fm ${version}')
+				println('Usage: fm [-v|-h|-p] [directory]')
 				return
 			}
 			'-p' {
@@ -869,14 +869,14 @@ fn fff_main(user_args []string) {
 	a.load_favorites()
 	a.get_os_defaults()
 	data_home := getenv_def('XDG_DATA_HOME', os.join_path(os.home_dir(), '.local/share'))
-	a.fff_trash = getenv_def('FFF_TRASH', os.join_path(data_home, 'fff/trash'))
+	a.fm_trash = getenv_def('FM_TRASH', os.join_path(data_home, 'fm/trash'))
 	cache := getenv_def('XDG_CACHE_HOME', os.join_path(os.home_dir(), '.cache'))
-	os.mkdir_all(os.join_path(cache, 'fff')) or {}
-	os.mkdir_all(a.fff_trash) or {}
-	if getenv_int('FFF_LS_COLORS', 1) == 1 {
+	os.mkdir_all(os.join_path(cache, 'fm')) or {}
+	os.mkdir_all(a.fm_trash) or {}
+	if getenv_int('FM_LS_COLORS', 1) == 1 {
 		a.parse_ls_colors()
 	}
-	a.hidden = getenv_int('FFF_HIDDEN', 0) == 1
+	a.hidden = getenv_int('FM_HIDDEN', 0) == 1
 	defer {
 		a.reset_terminal()
 	}
@@ -933,9 +933,9 @@ fn (mut a App) key_right() {
 fn (mut a App) handle_key(ch u8) {
 	match ch {
 		`q` {
-			cdfile := getenv_def('FFF_CD_FILE', os.join_path(getenv_def('XDG_CACHE_HOME',
-				os.join_path(os.home_dir(), '.cache')), 'fff/.fff_d'))
-			if getenv_int('FFF_CD_ON_EXIT', 1) == 1 {
+			cdfile := getenv_def('FM_CD_FILE', os.join_path(getenv_def('XDG_CACHE_HOME',
+				os.join_path(os.home_dir(), '.cache')), 'fm/.fm_d'))
+			if getenv_int('FM_CD_ON_EXIT', 1) == 1 {
 				os.mkdir_all(os.dir(cdfile)) or {}
 				os.write_file(cdfile, a.pwd) or {}
 			}
@@ -1054,7 +1054,7 @@ fn (mut a App) handle_key(ch u8) {
 		`x` {
 			if a.scroll < a.list.len {
 				p := a.list[a.scroll]
-				st := getenv_def('FFF_STAT_CMD', 'stat')
+				st := getenv_def('FM_STAT_CMD', 'stat')
 				nc_suspend_for_shell()
 				os.system('${st} "${p}"')
 				C.getchar()
@@ -1090,7 +1090,7 @@ fn (mut a App) handle_key(ch u8) {
 			a.open_path(os.home_dir())
 		}
 		`t` {
-			a.open_path(a.fff_trash)
+			a.open_path(a.fm_trash)
 		}
 		`-` {
 			if a.oldpwd != '' {

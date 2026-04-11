@@ -1,4 +1,0 @@
-name = "fff"
-author = "sarmonsiill"
-email = "sarmonsiill@tilde.guru"
-description = "Fast terminal file manager (fff), vlsh plugin entrypoint — same as `v run fff.v`"
