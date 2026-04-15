@@ -17,9 +17,11 @@ fn main() {
 					println('oc - wrapper for opencode (vlsh plugin)')
 					println('')
 					println('Usage:')
-					println('  oc <args...>   Translates to: opencode run "<args as single string>"')
+					println('  oc start         Enter the opencode TUI')
+					println('  oc <args...>     Translates to: opencode run "<args as single string>"')
 					println('')
-					println('Example:')
+					println('Examples:')
+					println('  oc start')
 					println('  oc write a small blog')
 					println('  # Becomes: opencode run "write a small blog"')
 				}
@@ -29,17 +31,15 @@ fn main() {
 		'run' {
 			cmd := if os.args.len > 2 { os.args[2] } else { '' }
 			match cmd {
-				'oc' {
-					if os.args.len > 3 {
-						args := os.args[3..]
-						combined := args.join(' ')
-						opencode_cmd := 'opencode run "${combined}"'
-						exit(os.system(opencode_cmd))
-					} else {
-						exit(os.system('opencode'))
-					}
+				'oc', 'start' {
+					exit(os.system('opencode'))
 				}
-				else {}
+				else {
+					args := os.args[2..]
+					combined := args.join(' ')
+					opencode_cmd := 'opencode run "${combined}"'
+					exit(os.system(opencode_cmd))
+				}
 			}
 		}
 		else {}
