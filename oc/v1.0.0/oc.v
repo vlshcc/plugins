@@ -34,11 +34,10 @@ fn main() {
 						args := os.args[3..]
 						combined := args.join(' ')
 						opencode_cmd := 'opencode run "${combined}"'
-						os.system(opencode_cmd)
+						exit(os.system(opencode_cmd))
 					} else {
-						os.system('opencode')
+						exit(os.system('opencode'))
 					}
-					exit(os.exit_code())
 				}
 				else {}
 			}
