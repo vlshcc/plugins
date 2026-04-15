@@ -6,6 +6,10 @@ import strings
 
 #pkgconfig ncurses
 
+#flag darwin -L/usr/local/Cellar/ncurses/6.6/lib
+#flag darwin -I/usr/local/Cellar/ncurses/6.6/include/ncursesw
+#flag darwin -lncursesw
+
 #include <ncurses.h>
 
 fn C.initscr() voidptr
