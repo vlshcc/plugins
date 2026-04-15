@@ -1,0 +1,4 @@
+name        = "oc"
+author      = "David Satime Wallin"
+email       = "david@snogerup.com"
+description = "Wrapper plugin that provides the 'oc' command for running opencode from vlsh."
